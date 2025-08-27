@@ -1,293 +1,202 @@
-#include "DHT.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>
-#include <time.h>
+#include <WiFiClient.h>
+#include <WiFiServer.h>
+#include "DHT.h"
+#include "time.h"
+
+#define DHTPIN 4        // Pin donde está conectado el DHT22
+#define DHTTYPE DHT22   // Tipo de sensor
+DHT dht(DHTPIN, DHTTYPE);
 
 // Configuración WiFi
-const char* ssid = "TU_WIFI_SSID";           // Cambia por tu SSID de WiFi
-const char* password = "TU_WIFI_PASSWORD";    // Cambia por tu contraseña de WiFi
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
 
-// Configuración de la API
-const char* apiUrl = "http://192.168.1.100:3000/api/sensors";  // Cambia por la IP de tu servidor
-const int apiPort = 3000;
+// Tu API
+const char* serverName = "https://iotapi-production.up.railway.app/registros";
 
-// Configuración NTP (Network Time Protocol)
+// Configuración de NTP
 const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = -18000;  // GMT-5 para México (ajusta según tu zona horaria)
-const int daylightOffset_sec = 0;   // Sin horario de verano
+const long gmtOffset_sec = -5 * 3600;  // Perú GMT-5
+const int daylightOffset_sec = 0;
 
-// Configuración de pines
-#define DHT_PIN 4
-#define DHT_TYPE DHT22
-#define RELAY_CALEFACTOR_PIN 2    // Pin para el relay del calefactor
-#define RELAY_VENTILADOR_PIN 15   // Pin para el relay del ventilador
-#define LED_CALEFACTOR_PIN 5      // LED VERDE - representa calefactor encendido
-#define LED_NORMAL_PIN 18         // LED AMARILLO - representa temperatura normal
-#define LED_VENTILADOR_PIN 19     // LED ROJO - representa ventilador encendido
-#define LED_WIFI_PIN 21           // LED para indicar estado de WiFi
+// Servidor HTTP simple en puerto 80
+WiFiServer server(80);
 
-// Umbrales de temperatura
-#define TEMP_BAJA 18.0      // Temperatura por debajo de la cual se enciende el calefactor
-#define TEMP_ALTA 28.0      // Temperatura por encima de la cual se enciende el ventilador
-#define TEMP_NORMAL_MIN 20.0 // Límite inferior de temperatura normal
-#define TEMP_NORMAL_MAX 26.0 // Límite superior de temperatura normal
-
-DHT dht(DHT_PIN, DHT_TYPE);
-
-// Variables para el envío de datos
-unsigned long lastApiCall = 0;
-const unsigned long apiCallInterval = 30000;  // Enviar datos cada 30 segundos
-int sensorId = 1;
+// Variables para control
+unsigned long lastAutoSend = 0;
+const unsigned long autoSendInterval = 60000; // 1 minuto
 
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  
-  // Configurar pines
-  pinMode(RELAY_CALEFACTOR_PIN, OUTPUT);
-  pinMode(RELAY_VENTILADOR_PIN, OUTPUT);
-  pinMode(LED_CALEFACTOR_PIN, OUTPUT);    // LED Verde = Calefactor
-  pinMode(LED_NORMAL_PIN, OUTPUT);         // LED Amarillo = Normal
-  pinMode(LED_VENTILADOR_PIN, OUTPUT);    // LED Rojo = Ventilador
-  pinMode(LED_WIFI_PIN, OUTPUT);
-  
-  // Inicializar actuadores apagados
-  digitalWrite(RELAY_CALEFACTOR_PIN, LOW);
-  digitalWrite(RELAY_VENTILADOR_PIN, LOW);
-  
-  // Inicializar LEDs apagados
-  digitalWrite(LED_CALEFACTOR_PIN, LOW);
-  digitalWrite(LED_NORMAL_PIN, LOW);
-  digitalWrite(LED_VENTILADOR_PIN, LOW);
-  digitalWrite(LED_WIFI_PIN, LOW);
-  
-  Serial.println("ESP32 Temperature Control System with Visual Actuator Indicators");
-  Serial.println("LED VERDE = Calefactor | LED AMARILLO = Normal | LED ROJO = Ventilador");
-  
-  // Conectar a WiFi
-  connectToWiFi();
-  
-  // Configurar tiempo NTP
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  
-  // Esperar a que se sincronice el tiempo
-  Serial.println("Sincronizando tiempo con servidor NTP...");
-  while (!time(nullptr)) {
-    Serial.print(".");
-    delay(1000);
-  }
-  Serial.println();
-  
-  // Mostrar tiempo actual
-  printLocalTime();
-}
 
-void loop() {
-  // Leer sensores
-  float humidity = dht.readHumidity();
-  float temperature = dht.readTemperature();
-  
-  if (isnan(humidity) || isnan(temperature)) {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
-  }
-  
-  // Mostrar lecturas en Serial
-  Serial.print("Humidity: ");
-  Serial.print(humidity);
-  Serial.print("%  Temperature: ");
-  Serial.print(temperature);
-  Serial.println("°C");
-  
-  // Control automático de clima
-  String estado = determineEstado(temperature);
-  String actuador = controlClimate(temperature);
-  
-  // Control de LEDs representativos
-  controlLEDs(estado, actuador);
-  
-  // Enviar datos a la API cada cierto tiempo
-  if (millis() - lastApiCall >= apiCallInterval) {
-    sendDataToAPI(temperature, humidity, estado, actuador);
-    lastApiCall = millis();
-  }
-  
-  // Esperar 2 segundos antes de la siguiente lectura
-  delay(2000);
-}
-
-void connectToWiFi() {
-  Serial.print("Connecting to WiFi: ");
-  Serial.println(ssid);
-  
+  // Conectar WiFi
   WiFi.begin(ssid, password);
-  
+  Serial.print("Conectando a WiFi...");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    digitalWrite(LED_WIFI_PIN, !digitalRead(LED_WIFI_PIN)); // Parpadear LED WiFi
   }
-  
-  Serial.println("");
-  Serial.println("WiFi connected!");
-  Serial.print("IP address: ");
+  Serial.println("\nConectado al WiFi!");
+  Serial.print("IP del Arduino: ");
   Serial.println(WiFi.localIP());
+
+  // Configurar NTP
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   
-  digitalWrite(LED_WIFI_PIN, HIGH); // LED WiFi fijo cuando está conectado
+  // Iniciar servidor HTTP
+  server.begin();
+  Serial.println("Servidor HTTP iniciado en puerto 80");
+  Serial.println("Endpoint: http://" + WiFi.localIP().toString() + "/read");
 }
 
-void printLocalTime() {
+String getFechaHora() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
-    Serial.println("Failed to obtain time");
-    return;
+    Serial.println("Error obteniendo hora NTP");
+    return "1970-01-01 00:00:00";
   }
-  
-  char timeString[64];
-  strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &timeinfo);
-  Serial.print("Tiempo actual: ");
-  Serial.println(timeString);
+  char buffer[25];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  return String(buffer);
 }
 
-String getCurrentDateTime() {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    return "";
-  }
+void readAndSendSensors() {
+  Serial.println("🔄 Leyendo sensores por comando manual...");
   
-  char timeString[64];
-  strftime(timeString, sizeof(timeString), "%Y-%m-%dT%H:%M:%S.000Z", &timeinfo);
-  return String(timeString);
-}
+  float temperatura = dht.readTemperature();
+  float humedad = dht.readHumidity();
 
-String determineEstado(float temperature) {
-  if (temperature < TEMP_NORMAL_MIN) {
-    return "bajo";
-  } else if (temperature >= TEMP_NORMAL_MIN && temperature <= TEMP_NORMAL_MAX) {
-    return "normal";
+  if (!isnan(temperatura) && !isnan(humedad)) {
+    Serial.printf("🌡️ Temperatura: %.2f°C, 💧 Humedad: %.2f%%\n", temperatura, humedad);
+    
+    // Enviar datos a la API
+    bool success = sendDataToAPI(temperatura, humedad);
+    
+    if (success) {
+      Serial.println("✅ Datos enviados exitosamente por comando manual");
+    } else {
+      Serial.println("❌ Error al enviar datos por comando manual");
+    }
   } else {
-    return "alto";
+    Serial.println("❌ Error al leer sensores DHT22");
   }
 }
 
-String controlClimate(float temperature) {
-  // Apagar ambos actuadores primero
-  digitalWrite(RELAY_CALEFACTOR_PIN, LOW);
-  digitalWrite(RELAY_VENTILADOR_PIN, LOW);
-  
-  if (temperature < TEMP_BAJA) {
-    // Temperatura muy baja - encender calefactor
-    digitalWrite(RELAY_CALEFACTOR_PIN, HIGH);
-    Serial.println("🔥 CALEFACTOR ON - Temperatura muy baja");
-    return "calefactor";
-  } else if (temperature > TEMP_ALTA) {
-    // Temperatura muy alta - encender ventilador
-    digitalWrite(RELAY_VENTILADOR_PIN, HIGH);
-    Serial.println("💨 VENTILADOR ON - Temperatura muy alta");
-    return "ventilador";
-  } else {
-    // Temperatura normal - no actuador
-    Serial.println("✅ Sin actuador - Temperatura normal");
-    return "ninguno";
-  }
-}
-
-void controlLEDs(String estado, String actuador) {
-  // Apagar todos los LEDs primero
-  digitalWrite(LED_CALEFACTOR_PIN, LOW);
-  digitalWrite(LED_NORMAL_PIN, LOW);
-  digitalWrite(LED_VENTILADOR_PIN, LOW);
-  
-  // Encender LED según el actuador activo
-  if (actuador == "calefactor") {
-    digitalWrite(LED_CALEFACTOR_PIN, HIGH);    // LED VERDE = Calefactor
-    Serial.println("🟢 LED VERDE ON - Calefactor activo");
-  } else if (actuador == "ventilador") {
-    digitalWrite(LED_VENTILADOR_PIN, HIGH);    // LED ROJO = Ventilador
-    Serial.println("🔴 LED ROJO ON - Ventilador activo");
-  } else {
-    digitalWrite(LED_NORMAL_PIN, HIGH);        // LED AMARILLO = Normal
-    Serial.println("🟡 LED AMARILLO ON - Temperatura normal");
-  }
-}
-
-void sendDataToAPI(float temperature, float humidity, String estado, String actuador) {
+bool sendDataToAPI(float temperatura, float humedad) {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi not connected. Attempting to reconnect...");
-    connectToWiFi();
-    return;
+    Serial.println("❌ WiFi desconectado");
+    return false;
   }
   
   HTTPClient http;
-  
-  // Crear JSON con los datos del sensor
-  StaticJsonDocument<400> doc;
-  doc["temperatura"] = round(temperature * 100) / 100.0;  // Redondear a 2 decimales
-  doc["humedad"] = round(humidity * 100) / 100.0;         // Redondear a 2 decimales
-  doc["estado"] = estado;
-  doc["actuador"] = actuador;
-  doc["fecha"] = getCurrentDateTime();  // Fecha y hora actual
-  
-  String jsonString;
-  serializeJson(doc, jsonString);
-  
-  Serial.print("📡 Sending data to API: ");
-  Serial.println(jsonString);
-  
-  // Configurar la petición HTTP
-  http.begin(apiUrl);
+  String fechaHora = getFechaHora();
+
+  // Crear JSON
+  String jsonData = "{";
+  jsonData += "\"fecha\":\"" + fechaHora + "\",";
+  jsonData += "\"temperatura\":" + String(temperatura, 2) + ",";
+  jsonData += "\"humedad\":" + String(humedad, 2);
+  jsonData += "}";
+
+  Serial.println("📤 Enviando datos: " + jsonData);
+
+  http.begin(serverName);
   http.addHeader("Content-Type", "application/json");
-  
-  // Realizar petición POST
-  int httpResponseCode = http.POST(jsonString);
-  
+
+  int httpResponseCode = http.POST(jsonData);
+
   if (httpResponseCode > 0) {
+    Serial.printf("✅ Respuesta API: %d\n", httpResponseCode);
     String response = http.getString();
-    Serial.print("✅ HTTP Response code: ");
-    Serial.println(httpResponseCode);
-    Serial.print("📨 Response: ");
-    Serial.println(response);
-    
-    // Parpadear LED correspondiente al actuador activo si el envío fue exitoso
-    if (actuador == "calefactor") {
-      digitalWrite(LED_CALEFACTOR_PIN, LOW);
-      delay(100);
-      digitalWrite(LED_CALEFACTOR_PIN, HIGH);
-    } else if (actuador == "ventilador") {
-      digitalWrite(LED_VENTILADOR_PIN, LOW);
-      delay(100);
-      digitalWrite(LED_VENTILADOR_PIN, HIGH);
-    } else {
-      digitalWrite(LED_NORMAL_PIN, LOW);
-      delay(100);
-      digitalWrite(LED_NORMAL_PIN, HIGH);
-    }
-    
+    Serial.println("📥 Respuesta: " + response);
+    http.end();
+    return true;
   } else {
-    Serial.print("❌ Error code: ");
-    Serial.println(httpResponseCode);
-    Serial.print("🚨 Error: ");
-    Serial.println(http.errorToString(httpResponseCode));
-    
-    // Parpadear todos los LEDs si hubo error
-    digitalWrite(LED_CALEFACTOR_PIN, HIGH);
-    digitalWrite(LED_NORMAL_PIN, HIGH);
-    digitalWrite(LED_VENTILADOR_PIN, HIGH);
-    delay(200);
-    digitalWrite(LED_CALEFACTOR_PIN, LOW);
-    digitalWrite(LED_NORMAL_PIN, LOW);
-    digitalWrite(LED_VENTILADOR_PIN, LOW);
+    Serial.printf("❌ Error en POST: %d\n", httpResponseCode);
+    http.end();
+    return false;
   }
-  
-  http.end();
 }
 
-// Función para verificar la conexión WiFi periódicamente
-void checkWiFiConnection() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi connection lost. Reconnecting...");
-    digitalWrite(LED_WIFI_PIN, LOW);
-    connectToWiFi();
+void loop() {
+  // Manejar peticiones HTTP del servidor
+  WiFiClient client = server.available();
+  if (client) {
+    Serial.println("🌐 Cliente conectado");
+    
+    String request = "";
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        request += c;
+        
+        if (c == '\n') {
+          // Verificar si es una petición GET /read
+          if (request.indexOf("GET /read") >= 0) {
+            Serial.println("📡 Comando HTTP recibido: LEER SENSORES");
+            
+            // Leer sensores y enviar a API
+            readAndSendSensors();
+            
+            // Responder al cliente
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: text/plain");
+            client.println("Access-Control-Allow-Origin: *");
+            client.println();
+            client.println("SENSORS_READ_SUCCESS");
+            
+            Serial.println("✅ Respuesta enviada al cliente");
+          } else if (request.indexOf("GET /status") >= 0) {
+            // Endpoint de estado
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: application/json");
+            client.println("Access-Control-Allow-Origin: *");
+            client.println();
+            
+            String status = "{";
+            status += "\"status\":\"online\",";
+            status += "\"wifi\":\"" + WiFi.SSID() + "\",";
+            status += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+            status += "\"uptime\":" + String(millis() / 1000) + ",";
+            status += "\"last_auto_send\":" + String(lastAutoSend / 1000);
+            status += "}";
+            
+            client.println(status);
+          } else {
+            // Petición no reconocida
+            client.println("HTTP/1.1 404 Not Found");
+            client.println("Content-Type: text/plain");
+            client.println();
+            client.println("Endpoint not found. Use /read or /status");
+          }
+          
+          break;
+        }
+      }
+    }
+    
+    client.stop();
+    Serial.println("🌐 Cliente desconectado");
   }
+  
+  // Envío automático cada minuto
+  if (WiFi.status() == WL_CONNECTED && (millis() - lastAutoSend) >= autoSendInterval) {
+    Serial.println("⏰ Envío automático programado...");
+    
+    float temperatura = dht.readTemperature();
+    float humedad = dht.readHumidity();
+
+    if (!isnan(temperatura) && !isnan(humedad)) {
+      sendDataToAPI(temperatura, humedad);
+      lastAutoSend = millis();
+    } else {
+      Serial.println("❌ Error al leer sensores en envío automático");
+    }
+  }
+  
+  // Pequeño delay para estabilidad
+  delay(100);
 }
