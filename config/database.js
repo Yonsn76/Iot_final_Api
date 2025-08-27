@@ -1,9 +1,11 @@
 const mongoose = require('mongoose');
-require('dotenv').config({ path: './config.env' });
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    // Credenciales directas en el código
+    const MONGODB_URI = "mongodb+srv://yonsn:1234@cluster0.7imrsfw.mongodb.net/iot_sensors?retryWrites=true&w=majority";
+    
+    const conn = await mongoose.connect(MONGODB_URI);
 
     console.log(`✅ MongoDB conectado: ${conn.connection.host}`);
     

@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config({ path: './config.env' });
 
 const connectDB = require('./config/database');
 const sensorRoutes = require('./routes/sensorRoutes');
@@ -23,7 +22,7 @@ app.get('/', (req, res) => {
 app.use('/api/sensors', sensorRoutes);
 
 // Puerto
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
