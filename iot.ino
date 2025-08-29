@@ -1,7 +1,5 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <WiFiClient.h>
-#include <WiFiServer.h>
 #include "DHT.h"
 #include "time.h"
 
@@ -9,192 +7,227 @@
 #define DHTTYPE DHT22   // Tipo de sensor
 DHT dht(DHTPIN, DHTTYPE);
 
+// Pines para los relés (cada relé controla un LED/actuador)
+#define PIN_RELE_VENTILADOR  12
+#define PIN_RELE_CALEFACTOR  13
+
 // Configuración WiFi
 const char* ssid = "Wokwi-GUEST";
 const char* password = "";
 
-// Tu API
-const char* serverName = "https://iotapi-production.up.railway.app/registros";
+// Tu API local
+const char* serverName = "https://iotapi.up.railway.app/api/sensors";
 
 // Configuración de NTP
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -5 * 3600;  // Perú GMT-5
 const int daylightOffset_sec = 0;
 
-// Servidor HTTP simple en puerto 80
-WiFiServer server(80);
-
-// Variables para control
-unsigned long lastAutoSend = 0;
-const unsigned long autoSendInterval = 60000; // 1 minuto
+// Variables para control de tiempo
+unsigned long lastTime = 0;
+const long interval = 10000; // 10 segundos en milisegundos
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("¡Inicio correcto!"); // Línea extra para verificar el Serial Monitor
+
+  // Inicializar DHT
   dht.begin();
+  Serial.println("DHT22 inicializado");
+
+  // Configurar pines de los relés como salida, y apagarlos al inicio
+  pinMode(PIN_RELE_VENTILADOR, OUTPUT);
+  pinMode(PIN_RELE_CALEFACTOR, OUTPUT);
+  digitalWrite(PIN_RELE_VENTILADOR, LOW);
+  digitalWrite(PIN_RELE_CALEFACTOR, LOW);
 
   // Conectar WiFi
   WiFi.begin(ssid, password);
   Serial.print("Conectando a WiFi...");
-  while (WiFi.status() != WL_CONNECTED) {
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     Serial.print(".");
+    attempts++;
   }
-  Serial.println("\nConectado al WiFi!");
-  Serial.print("IP del Arduino: ");
-  Serial.println(WiFi.localIP());
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ Conectado al WiFi!");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\n❌ Fallo en la conexión WiFi");
+  }
 
   // Configurar NTP
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  Serial.println("⏰ Configurando NTP...");
   
-  // Iniciar servidor HTTP
-  server.begin();
-  Serial.println("Servidor HTTP iniciado en puerto 80");
-  Serial.println("Endpoint: http://" + WiFi.localIP().toString() + "/read");
+  // Esperar a que se sincronice el tiempo
+  int ntpAttempts = 0;
+  struct tm timeinfo;
+  while (!getLocalTime(&timeinfo) && ntpAttempts < 10) {
+    Serial.print(".");
+    delay(1000);
+    ntpAttempts++;
+  }
+  
+  if (ntpAttempts < 10) {
+    Serial.println("\n✅ Tiempo NTP sincronizado");
+  } else {
+    Serial.println("\n❌ Error sincronizando NTP");
+  }
 }
+
 
 String getFechaHora() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
-    Serial.println("Error obteniendo hora NTP");
-    return "1970-01-01 00:00:00";
+    Serial.println("⚠️ Error obteniendo hora NTP, usando timestamp");
+    return String(millis());
   }
+  
   char buffer[25];
   strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
   return String(buffer);
 }
 
-void readAndSendSensors() {
-  Serial.println("🔄 Leyendo sensores por comando manual...");
+
+void enviarDatos() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("❌ WiFi desconectado, reconectando...");
+    WiFi.reconnect();
+    return;
+  }
+
+  HTTPClient http;
   
+  // Leer sensores
   float temperatura = dht.readTemperature();
   float humedad = dht.readHumidity();
 
-  if (!isnan(temperatura) && !isnan(humedad)) {
-    Serial.printf("🌡️ Temperatura: %.2f°C, 💧 Humedad: %.2f%%\n", temperatura, humedad);
+  // Verificar lectura de sensores
+  if (isnan(temperatura) || isnan(humedad)) {
+    Serial.println("❌ Error al leer el DHT22");
+    Serial.print("Temperatura: ");
+    Serial.println(temperatura);
+    Serial.print("Humedad: ");
+    Serial.println(humedad);
     
-    // Enviar datos a la API
-    bool success = sendDataToAPI(temperatura, humedad);
-    
-    if (success) {
-      Serial.println("✅ Datos enviados exitosamente por comando manual");
-    } else {
-      Serial.println("❌ Error al enviar datos por comando manual");
-    }
-  } else {
-    Serial.println("❌ Error al leer sensores DHT22");
+    // Apaga ambos relés si la lectura falla
+    digitalWrite(PIN_RELE_VENTILADOR, LOW);
+    digitalWrite(PIN_RELE_CALEFACTOR, LOW);
+    return;
   }
-}
 
-bool sendDataToAPI(float temperatura, float humedad) {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("❌ WiFi desconectado");
-    return false;
-  }
-  
-  HTTPClient http;
+  // Mostrar lecturas en Serial
+  Serial.println("📊 Lecturas de sensores:");
+  Serial.print("🌡️ Temperatura: ");
+  Serial.print(temperatura);
+  Serial.println("°C");
+  Serial.print("💧 Humedad: ");
+  Serial.print(humedad);
+  Serial.println("%");
+
   String fechaHora = getFechaHora();
 
-  // Crear JSON
+  // Crear JSON mejorado
   String jsonData = "{";
-  jsonData += "\"fecha\":\"" + fechaHora + "\",";
   jsonData += "\"temperatura\":" + String(temperatura, 2) + ",";
-  jsonData += "\"humedad\":" + String(humedad, 2);
+  jsonData += "\"humedad\":" + String(humedad, 2) + ",";
+  
+  // Determinar estado basado en temperatura
+  String estado = "normal";
+  String actuador = "ninguno";
+  
+  if (temperatura > 30) {
+    estado = "caliente";
+    actuador = "ventilador";
+  } else if (temperatura < 20) {
+    estado = "frio";
+    actuador = "calefactor";
+  }
+  
+  if (humedad > 80) {
+    estado = "humedo";
+    actuador = "deshumidificador";
+  } else if (humedad < 30) {
+    estado = "seco";
+    actuador = "humidificador";
+  }
+  
+  jsonData += "\"estado\":\"" + estado + "\",";
+  jsonData += "\"actuador\":\"" + actuador + "\"";
   jsonData += "}";
 
-  Serial.println("📤 Enviando datos: " + jsonData);
+  Serial.println("📤 Enviando datos a la API:");
+  Serial.println(jsonData);
 
+  // --- AQUÍ CONTROLAS LOS RELÉS SEGÚN EL ACTUADOR ---
+  if (actuador == "ventilador") {
+    digitalWrite(PIN_RELE_VENTILADOR, HIGH);
+    digitalWrite(PIN_RELE_CALEFACTOR, LOW);
+  } else if (actuador == "calefactor") {
+    digitalWrite(PIN_RELE_VENTILADOR, LOW);
+    digitalWrite(PIN_RELE_CALEFACTOR, HIGH);
+  } else {
+    digitalWrite(PIN_RELE_VENTILADOR, LOW);
+    digitalWrite(PIN_RELE_CALEFACTOR, LOW);
+  }
+  // ---------------------------------------------------
+
+  // Configurar HTTP
   http.begin(serverName);
   http.addHeader("Content-Type", "application/json");
+  http.setTimeout(10000); // 10 segundos de timeout
 
+  // Enviar POST
   int httpResponseCode = http.POST(jsonData);
 
   if (httpResponseCode > 0) {
-    Serial.printf("✅ Respuesta API: %d\n", httpResponseCode);
+    Serial.print("✅ Respuesta API: ");
+    Serial.println(httpResponseCode);
+    
     String response = http.getString();
-    Serial.println("📥 Respuesta: " + response);
-    http.end();
-    return true;
+    Serial.println("📥 Respuesta completa:");
+    Serial.println(response);
+    
+    // Parsear respuesta si es necesario
+    if (httpResponseCode == 201 || httpResponseCode == 200) {
+      Serial.println("🎉 Datos enviados exitosamente!");
+    }
   } else {
-    Serial.printf("❌ Error en POST: %d\n", httpResponseCode);
-    http.end();
-    return false;
+    Serial.print("❌ Error en POST: ");
+    Serial.println(httpResponseCode);
+    Serial.print("Error: ");
+    Serial.println(http.errorToString(httpResponseCode));
   }
+
+  http.end();
 }
 
 void loop() {
-  // Manejar peticiones HTTP del servidor
-  WiFiClient client = server.available();
-  if (client) {
-    Serial.println("🌐 Cliente conectado");
-    
-    String request = "";
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        request += c;
-        
-        if (c == '\n') {
-          // Verificar si es una petición GET /read
-          if (request.indexOf("GET /read") >= 0) {
-            Serial.println("📡 Comando HTTP recibido: LEER SENSORES");
-            
-            // Leer sensores y enviar a API
-            readAndSendSensors();
-            
-            // Responder al cliente
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-Type: text/plain");
-            client.println("Access-Control-Allow-Origin: *");
-            client.println();
-            client.println("SENSORS_READ_SUCCESS");
-            
-            Serial.println("✅ Respuesta enviada al cliente");
-          } else if (request.indexOf("GET /status") >= 0) {
-            // Endpoint de estado
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-Type: application/json");
-            client.println("Access-Control-Allow-Origin: *");
-            client.println();
-            
-            String status = "{";
-            status += "\"status\":\"online\",";
-            status += "\"wifi\":\"" + WiFi.SSID() + "\",";
-            status += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
-            status += "\"uptime\":" + String(millis() / 1000) + ",";
-            status += "\"last_auto_send\":" + String(lastAutoSend / 1000);
-            status += "}";
-            
-            client.println(status);
-          } else {
-            // Petición no reconocida
-            client.println("HTTP/1.1 404 Not Found");
-            client.println("Content-Type: text/plain");
-            client.println();
-            client.println("Endpoint not found. Use /read or /status");
-          }
-          
-          break;
-        }
-      }
-    }
-    
-    client.stop();
-    Serial.println("🌐 Cliente desconectado");
-  }
+  unsigned long currentTime = millis();
   
-  // Envío automático cada minuto
-  if (WiFi.status() == WL_CONNECTED && (millis() - lastAutoSend) >= autoSendInterval) {
-    Serial.println("⏰ Envío automático programado...");
+  // Enviar datos cada intervalo (10s)
+  if (currentTime - lastTime >= interval) {
+    enviarDatos();
+    lastTime = currentTime;
     
-    float temperatura = dht.readTemperature();
-    float humedad = dht.readHumidity();
-
-    if (!isnan(temperatura) && !isnan(humedad)) {
-      sendDataToAPI(temperatura, humedad);
-      lastAutoSend = millis();
+    // Mostrar estado del WiFi
+    Serial.print("📡 Estado WiFi: ");
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("Conectado");
+      Serial.print("📶 Señal: ");
+      Serial.print(WiFi.RSSI());
+      Serial.println(" dBm");
     } else {
-      Serial.println("❌ Error al leer sensores en envío automático");
+      Serial.println("Desconectado");
     }
+    
+    Serial.println("⏳ Esperando próximo envío...");
+    Serial.println("----------------------------------------");
   }
   
   // Pequeño delay para estabilidad
