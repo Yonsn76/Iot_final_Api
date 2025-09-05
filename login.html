@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - IoT API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .form-container {
+            padding: 40px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        .form-group select:hover {
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #e1e5e9;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+
+        .toggle-form {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .toggle-form button {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: underline;
+        }
+
+        .toggle-form button:hover {
+            color: #764ba2;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .user-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .user-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .user-info p {
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <div class="logo">
+                <h1>🔐 IoT API</h1>
+                <p>Sistema de Autenticación</p>
+            </div>
+
+            <!-- Mensajes -->
+            <div id="message" class="message hidden"></div>
+
+            <!-- Formulario de Login -->
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="loginEmail">Email:</label>
+                    <input type="email" id="loginEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Contraseña:</label>
+                    <input type="password" id="loginPassword" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+            </form>
+
+            <!-- Formulario de Registro -->
+            <form id="registerForm" class="auth-form hidden">
+                <div class="form-group">
+                    <label for="registerUsername">Nombre de Usuario:</label>
+                    <input type="text" id="registerUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">Email:</label>
+                    <input type="email" id="registerEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">Contraseña:</label>
+                    <input type="password" id="registerPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerRole">Rol:</label>
+                    <select id="registerRole">
+                        <option value="user">Usuario</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Registrarse</button>
+            </form>
+
+            <!-- Información del Usuario -->
+            <div id="userInfo" class="user-info hidden">
+                <h3 id="userTitle">👤 Usuario Autenticado</h3>
+                <p><strong>Nombre:</strong> <span id="userName"></span></p>
+                <p><strong>Email:</strong> <span id="userEmail"></span></p>
+                <p><strong>Rol:</strong> <span id="userRole"></span></p>
+                <div id="adminActions" class="hidden" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #dee2e6;">
+                    <h4 style="color: #dc3545; margin-bottom: 10px;">🔧 Acciones de Administrador</h4>
+                    <button class="btn btn-secondary" onclick="showAllUsers()" style="margin-bottom: 10px;">Ver Todos los Usuarios</button>
+                    <button class="btn btn-secondary" onclick="showSearchUsers()" style="margin-bottom: 10px;">Buscar Usuarios</button>
+                </div>
+                <button class="logout-btn" onclick="logout()">Cerrar Sesión</button>
+            </div>
+
+            <!-- Botones de cambio -->
+            <div class="toggle-form">
+                <button type="button" onclick="toggleForm()" id="toggleBtn">
+                    ¿No tienes cuenta? Regístrate aquí
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/api/users';
+        let currentUser = null;
+        let isLoginForm = true;
+
+        // Elementos del DOM
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const userInfo = document.getElementById('userInfo');
+        const message = document.getElementById('message');
+        const toggleBtn = document.getElementById('toggleBtn');
+
+        // Event listeners
+        loginForm.addEventListener('submit', handleLogin);
+        registerForm.addEventListener('submit', handleRegister);
+
+        // Función para mostrar mensajes
+        function showMessage(text, type = 'success') {
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.classList.remove('hidden');
+            
+            setTimeout(() => {
+                message.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Función para alternar entre formularios
+        function toggleForm() {
+            isLoginForm = !isLoginForm;
+            
+            if (isLoginForm) {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                toggleBtn.textContent = '¿No tienes cuenta? Regístrate aquí';
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                toggleBtn.textContent = '¿Ya tienes cuenta? Inicia sesión aquí';
+            }
+            
+            // Limpiar formularios
+            loginForm.reset();
+            registerForm.reset();
+            message.classList.add('hidden');
+        }
+
+        // Función para manejar el login
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentUser = data.user;
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    showUserInfo();
+                    showMessage('¡Inicio de sesión exitoso!', 'success');
+                } else {
+                    showMessage(data.message || 'Error en el inicio de sesión', 'error');
+                }
+            } catch (error) {
+                showMessage('Error de conexión. Verifica que el servidor esté corriendo.', 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        // Función para manejar el registro
+        async function handleRegister(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            const role = document.getElementById('registerRole').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, email, password, role })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentUser = data.user;
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    showUserInfo();
+                    showMessage('¡Registro exitoso! Bienvenido.', 'success');
+                } else {
+                    showMessage(data.message || 'Error en el registro', 'error');
+                }
+            } catch (error) {
+                showMessage('Error de conexión. Verifica que el servidor esté corriendo.', 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        // Función para mostrar información del usuario
+        function showUserInfo() {
+            if (currentUser) {
+                document.getElementById('userName').textContent = currentUser.username;
+                document.getElementById('userEmail').textContent = currentUser.email;
+                document.getElementById('userRole').textContent = currentUser.role;
+                
+                // Cambiar título si es admin
+                const userTitle = document.getElementById('userTitle');
+                const adminActions = document.getElementById('adminActions');
+                
+                if (currentUser.role === 'admin') {
+                    userTitle.textContent = '👑 Administrador Autenticado';
+                    adminActions.classList.remove('hidden');
+                } else {
+                    userTitle.textContent = '👤 Usuario Autenticado';
+                    adminActions.classList.add('hidden');
+                }
+                
+                loginForm.classList.add('hidden');
+                registerForm.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                toggleBtn.style.display = 'none';
+            }
+        }
+
+        // Función para cerrar sesión
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            
+            userInfo.classList.add('hidden');
+            loginForm.classList.remove('hidden');
+            toggleBtn.style.display = 'block';
+            toggleBtn.textContent = '¿No tienes cuenta? Regístrate aquí';
+            isLoginForm = true;
+            
+            showMessage('Sesión cerrada exitosamente', 'success');
+        }
+
+        // Funciones para acciones de administrador
+        async function showAllUsers() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE_URL}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let usersList = '📋 Lista de Usuarios:\n\n';
+                    data.users.forEach(user => {
+                        usersList += `👤 ${user.username} (${user.email}) - Rol: ${user.role}\n`;
+                    });
+                    alert(usersList);
+                } else {
+                    showMessage(data.message || 'Error al obtener usuarios', 'error');
+                }
+            } catch (error) {
+                showMessage('Error de conexión', 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function showSearchUsers() {
+            const searchTerm = prompt('Ingresa el término de búsqueda (username o email):');
+            if (!searchTerm) return;
+
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE_URL}/search?q=${encodeURIComponent(searchTerm)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.users.length === 0) {
+                        alert('No se encontraron usuarios con ese término de búsqueda.');
+                    } else {
+                        let usersList = `🔍 Resultados para "${searchTerm}":\n\n`;
+                        data.users.forEach(user => {
+                            usersList += `👤 ${user.username} (${user.email}) - Rol: ${user.role}\n`;
+                        });
+                        alert(usersList);
+                    }
+                } else {
+                    showMessage(data.message || 'Error en la búsqueda', 'error');
+                }
+            } catch (error) {
+                showMessage('Error de conexión', 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        // Verificar si hay un usuario logueado al cargar la página
+        window.addEventListener('load', () => {
+            const savedUser = localStorage.getItem('user');
+            const savedToken = localStorage.getItem('token');
+            
+            if (savedUser && savedToken) {
+                currentUser = JSON.parse(savedUser);
+                showUserInfo();
+            }
+        });
+    </script>
+</body>
+</html>

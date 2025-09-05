@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
 const connectDB = require('./config/database');
 const sensorRoutes = require('./routes/sensorRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
@@ -61,6 +63,7 @@ app.post('/api/sensors/request', async (req, res) => {
 
 // Rutas de la API
 app.use('/api/sensors', sensorRoutes);
+app.use('/api/users', userRoutes);
 
 // Puerto
 const PORT = 3000;

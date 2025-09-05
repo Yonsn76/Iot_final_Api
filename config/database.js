@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    // Credenciales directas en el código
-    const MONGODB_URI = "mongodb+srv://yonsn:1234@cluster0.7imrsfw.mongodb.net/iot_sensors?retryWrites=true&w=majority";
+    // Usar variables de entorno o valores por defecto
+    const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://yonsn:1234@cluster0.7imrsfw.mongodb.net/iot_sensors?retryWrites=true&w=majority";
     
     const conn = await mongoose.connect(MONGODB_URI);
 
