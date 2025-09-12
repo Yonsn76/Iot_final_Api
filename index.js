@@ -17,7 +17,7 @@ app.use(express.json());
 
 // Ruta de bienvenida
 app.get('/', (req, res) => {
-  res.json({ message: 'API de Sensores IoT - CRUD Simple' });
+  res.json({ message: 'Pagina equivocado aca no es' });
 });
 
 // Endpoint para solicitar datos nuevos del Arduino
