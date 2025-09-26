@@ -13,21 +13,13 @@ const generateToken = (userId) => {
 // Registrar nuevo usuario
 const register = async (req, res) => {
   try {
-    const { username, email, password, role = 'user' } = req.body;
+    const { username, email, password } = req.body;
 
     // Validaciones básicas
     if (!username || !email || !password) {
       return res.status(400).json({ 
         error: 'Datos incompletos',
         message: 'Username, email y password son requeridos'
-      });
-    }
-
-    // Validar rol
-    if (role && !['user', 'admin'].includes(role)) {
-      return res.status(400).json({ 
-        error: 'Rol inválido',
-        message: 'El rol debe ser "user" o "admin"'
       });
     }
 
@@ -50,7 +42,7 @@ const register = async (req, res) => {
     }
 
     // Crear el usuario
-    const user = await userProvider.create({ username, email, password, role });
+    const user = await userProvider.create({ username, email, password });
     
     // Generar token
     const token = generateToken(user._id);

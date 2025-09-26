@@ -23,11 +23,6 @@ const userSchema = new mongoose.Schema({
     required: [true, 'La contraseña es requerida'],
     minlength: [6, 'La contraseña debe tener al menos 6 caracteres']
   },
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user'
-  },
   isActive: {
     type: Boolean,
     default: true
