@@ -1,9 +1,17 @@
 const mongoose = require('mongoose');
 
 const sensorDataSchema = new mongoose.Schema({
-  fecha: {
-    type: Date,
-    default: Date.now
+  sensorId: {
+    type: String,
+    required: true
+  },
+  ubicacion: {
+    type: String,
+    required: true
+  },
+  tipo_sensor: {
+    type: String,
+    required: true
   },
   temperatura: {
     type: Number,
@@ -20,6 +28,10 @@ const sensorDataSchema = new mongoose.Schema({
   actuador: {
     type: String,
     default: 'ninguno'
+  },
+  fecha: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: false,
