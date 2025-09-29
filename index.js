@@ -5,6 +5,7 @@ const cors = require('cors');
 const connectDB = require('./config/database');
 const sensorRoutes = require('./routes/sensorRoutes');
 const userRoutes = require('./routes/userRoutes');
+const userPreferencesRoutes = require('./routes/userPreferencesRoutes');
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.post('/api/sensors/request', async (req, res) => {
 // Rutas de la API
 app.use('/api/sensors', sensorRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/user-preferences', userPreferencesRoutes);
 
 // Puerto
 const PORT = 3000;
