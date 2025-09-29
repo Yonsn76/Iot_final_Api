@@ -15,7 +15,7 @@ const userPreferencesSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  preferredLocation: {
+  preferredSensorId: {
     type: String,
     default: null
   },
