@@ -9,7 +9,11 @@ const sensorDataSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  tipo_sensor: {
+  tipo: {
+    type: String,
+    required: true
+  },
+  modelo: {
     type: String,
     required: true
   },
