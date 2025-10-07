@@ -58,10 +58,6 @@ const userPreferencesSchema = new mongoose.Schema({
   totalNotifications: {
     type: Number,
     default: 0
-  },
-  lastUpdated: {
-    type: Date,
-    default: Date.now
   }
 }, {
   timestamps: true // Agrega createdAt y updatedAt automáticamente

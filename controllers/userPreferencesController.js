@@ -24,7 +24,6 @@ const saveUserPreferences = async (req, res) => {
       userPreferences.customNotifications = customNotifications || [];
       userPreferences.activeNotifications = activeNotifications || [];
       userPreferences.totalNotifications = totalNotifications || 0;
-      userPreferences.lastUpdated = new Date();
     } else {
       // Crear nuevas preferencias
       userPreferences = new UserPreferences({
@@ -32,8 +31,7 @@ const saveUserPreferences = async (req, res) => {
         preferredSensorId,
         customNotifications: customNotifications || [],
         activeNotifications: activeNotifications || [],
-        totalNotifications: totalNotifications || 0,
-        lastUpdated: new Date()
+        totalNotifications: totalNotifications || 0
       });
     }
 
@@ -56,7 +54,7 @@ const saveUserPreferences = async (req, res) => {
         customNotificationsCount: populatedPreferences.customNotifications.length,
         activeNotificationsCount: populatedPreferences.activeNotifications.length,
         totalNotifications: populatedPreferences.totalNotifications,
-        lastUpdated: populatedPreferences.lastUpdated
+        updatedAt: populatedPreferences.updatedAt
       }
     });
 
@@ -241,8 +239,7 @@ const updateUserPreferences = async (req, res) => {
       });
     }
 
-    // Agregar timestamp de actualización
-    updateData.lastUpdated = new Date();
+    // updatedAt se actualiza automáticamente con timestamps: true
 
     const userPreferences = await UserPreferences.findOneAndUpdate(
       { userId },
@@ -262,7 +259,7 @@ const updateUserPreferences = async (req, res) => {
         customNotificationsCount: userPreferences.customNotifications.length,
         activeNotificationsCount: userPreferences.activeNotifications.length,
         totalNotifications: userPreferences.totalNotifications,
-        lastUpdated: userPreferences.lastUpdated
+        updatedAt: userPreferences.updatedAt
       }
     });
 

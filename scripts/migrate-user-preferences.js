@@ -34,7 +34,8 @@ const migrateUserPreferences = async () => {
           { 
             $unset: { 
               username: 1, 
-              email: 1 
+              email: 1,
+              lastUpdated: 1  // Eliminar campo lastUpdated redundante
             } 
           }
         );
@@ -57,7 +58,8 @@ const migrateUserPreferences = async () => {
     const remainingRedundantFields = await UserPreferences.find({
       $or: [
         { username: { $exists: true } },
-        { email: { $exists: true } }
+        { email: { $exists: true } },
+        { lastUpdated: { $exists: true } }
       ]
     });
 
