@@ -4,7 +4,7 @@ const User = require('../models/User');
 // POST - Crear o actualizar preferencias del usuario
 const saveUserPreferences = async (req, res) => {
   try {
-    const { userId, username, email, preferredSensorId, customNotifications, activeNotifications, totalNotifications } = req.body;
+    const { userId, preferredSensorId, customNotifications, activeNotifications, totalNotifications } = req.body;
 
     // Validar que el usuario existe
     const user = await User.findById(userId);
@@ -20,8 +20,6 @@ const saveUserPreferences = async (req, res) => {
 
     if (userPreferences) {
       // Actualizar preferencias existentes
-      userPreferences.username = username;
-      userPreferences.email = email;
       userPreferences.preferredSensorId = preferredSensorId;
       userPreferences.customNotifications = customNotifications || [];
       userPreferences.activeNotifications = activeNotifications || [];
@@ -31,8 +29,6 @@ const saveUserPreferences = async (req, res) => {
       // Crear nuevas preferencias
       userPreferences = new UserPreferences({
         userId,
-        username,
-        email,
         preferredSensorId,
         customNotifications: customNotifications || [],
         activeNotifications: activeNotifications || [],
@@ -43,19 +39,24 @@ const saveUserPreferences = async (req, res) => {
 
     await userPreferences.save();
 
+    // Obtener datos del usuario mediante populate
+    const populatedPreferences = await UserPreferences.findById(userPreferences._id)
+      .populate('userId', 'username email')
+      .select('-__v');
+
     res.status(200).json({
       success: true,
       message: 'Preferencias guardadas exitosamente',
       data: {
-        id: userPreferences._id,
-        userId: userPreferences.userId,
-        username: userPreferences.username,
-        email: userPreferences.email,
-        preferredSensorId: userPreferences.preferredSensorId,
-        customNotificationsCount: userPreferences.customNotifications.length,
-        activeNotificationsCount: userPreferences.activeNotifications.length,
-        totalNotifications: userPreferences.totalNotifications,
-        lastUpdated: userPreferences.lastUpdated
+        id: populatedPreferences._id,
+        userId: populatedPreferences.userId._id,
+        username: populatedPreferences.userId.username,
+        email: populatedPreferences.userId.email,
+        preferredSensorId: populatedPreferences.preferredSensorId,
+        customNotificationsCount: populatedPreferences.customNotifications.length,
+        activeNotificationsCount: populatedPreferences.activeNotifications.length,
+        totalNotifications: populatedPreferences.totalNotifications,
+        lastUpdated: populatedPreferences.lastUpdated
       }
     });
 
@@ -74,7 +75,9 @@ const getUserPreferences = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const userPreferences = await UserPreferences.findOne({ userId });
+    const userPreferences = await UserPreferences.findOne({ userId })
+      .populate('userId', 'username email')
+      .select('-__v');
 
     if (!userPreferences) {
       return res.status(404).json({
@@ -108,6 +111,7 @@ const getAllUserPreferences = async (req, res) => {
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     const userPreferences = await UserPreferences.find()
+      .populate('userId', 'username email')
       .sort(sortOptions)
       .skip(skip)
       .limit(parseInt(limit))
@@ -142,7 +146,8 @@ const getPreferredSensor = async (req, res) => {
     const { userId } = req.params;
 
     const userPreferences = await UserPreferences.findOne({ userId })
-      .select('preferredSensorId username');
+      .populate('userId', 'username')
+      .select('preferredSensorId userId');
 
     if (!userPreferences) {
       return res.status(404).json({
@@ -154,8 +159,8 @@ const getPreferredSensor = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        userId,
-        username: userPreferences.username,
+        userId: userPreferences.userId._id,
+        username: userPreferences.userId.username,
         preferredSensorId: userPreferences.preferredSensorId
       }
     });
@@ -243,16 +248,16 @@ const updateUserPreferences = async (req, res) => {
       { userId },
       updateData,
       { new: true, upsert: true } // upsert: true crea el documento si no existe
-    );
+    ).populate('userId', 'username email');
 
     res.status(200).json({
       success: true,
       message: 'Preferencias actualizadas exitosamente',
       data: {
         id: userPreferences._id,
-        userId: userPreferences.userId,
-        username: userPreferences.username,
-        email: userPreferences.email,
+        userId: userPreferences.userId._id,
+        username: userPreferences.userId.username,
+        email: userPreferences.userId.email,
         preferredSensorId: userPreferences.preferredSensorId,
         customNotificationsCount: userPreferences.customNotifications.length,
         activeNotificationsCount: userPreferences.activeNotifications.length,
