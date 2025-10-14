@@ -23,10 +23,6 @@ const userSchema = new mongoose.Schema({
     required: [true, 'La contraseña es requerida'],
     minlength: [6, 'La contraseña debe tener al menos 6 caracteres']
   },
-  isActive: {
-    type: Boolean,
-    default: true
-  }
 }, {
   timestamps: true,
   versionKey: false

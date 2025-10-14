@@ -1,0 +1,133 @@
+const mongoose = require('mongoose');
+
+const notificationSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  name: {
+    type: String,
+    required: [true, 'El nombre de la notificación es requerido'],
+    trim: true,
+    maxlength: [100, 'El nombre no puede exceder 100 caracteres']
+  },
+  enabled: {
+    type: Boolean,
+    default: true
+  },
+  type: {
+    type: String,
+    enum: {
+      values: ['temperature', 'humidity', 'actuator', 'status'],
+      message: 'Tipo de notificación inválido'
+    },
+    required: [true, 'El tipo de notificación es requerido']
+  },
+  condition: {
+    type: String,
+    enum: {
+      values: ['mayor_que', 'menor_que', 'igual_a', 'cambia_a'],
+      message: 'Condición de notificación inválida'
+    },
+    required: [true, 'La condición es requerida']
+  },
+  value: {
+    type: mongoose.Schema.Types.Mixed,
+    required: [true, 'El valor es requerido']
+  },
+  message: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'El mensaje no puede exceder 500 caracteres']
+  },
+  locationScope: {
+    type: String,
+    enum: {
+      values: ['all', 'specific'],
+      message: 'Alcance de ubicación inválido'
+    },
+    default: 'all'
+  },
+  specificLocation: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'La ubicación específica no puede exceder 100 caracteres']
+  },
+  status: {
+    type: String,
+    enum: {
+      values: ['custom', 'active', 'archived'],
+      message: 'Estado de notificación inválido'
+    },
+    default: 'custom'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  lastTriggered: {
+    type: Date,
+    default: null
+  }
+}, {
+  timestamps: true,
+  versionKey: false
+});
+
+// Índices para optimizar consultas
+notificationSchema.index({ userId: 1, status: 1 });
+notificationSchema.index({ userId: 1, type: 1 });
+notificationSchema.index({ id: 1 }, { unique: true });
+notificationSchema.index({ createdAt: -1 });
+notificationSchema.index({ userId: 1, enabled: 1 });
+
+// Método para obtener notificaciones activas de un usuario
+notificationSchema.statics.getActiveByUserId = function(userId) {
+  return this.find({ 
+    userId: userId, 
+    status: 'active',
+    enabled: true 
+  }).sort({ createdAt: -1 });
+};
+
+// Método para obtener notificaciones personalizadas de un usuario
+notificationSchema.statics.getCustomByUserId = function(userId) {
+  return this.find({ 
+    userId: userId, 
+    status: 'custom' 
+  }).sort({ createdAt: -1 });
+};
+
+// Método para activar una notificación
+notificationSchema.methods.activate = function() {
+  this.status = 'active';
+  return this.save();
+};
+
+// Método para desactivar una notificación
+notificationSchema.methods.deactivate = function() {
+  this.status = 'custom';
+  return this.save();
+};
+
+// Método para archivar una notificación
+notificationSchema.methods.archive = function() {
+  this.status = 'archived';
+  return this.save();
+};
+
+// Middleware para generar ID único si no existe
+notificationSchema.pre('save', function(next) {
+  if (!this.id) {
+    this.id = new mongoose.Types.ObjectId().toString();
+  }
+  next();
+});
+
+module.exports = mongoose.model('Notification', notificationSchema);

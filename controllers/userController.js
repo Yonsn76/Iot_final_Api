@@ -83,13 +83,6 @@ const login = async (req, res) => {
       });
     }
 
-    // Verificar si el usuario está activo
-    if (!user.isActive) {
-      return res.status(401).json({ 
-        error: 'Cuenta inactiva',
-        message: 'Tu cuenta ha sido desactivada'
-      });
-    }
 
     // Verificar contraseña
     const isPasswordValid = await user.comparePassword(password);

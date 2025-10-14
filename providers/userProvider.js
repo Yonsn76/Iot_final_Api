@@ -8,7 +8,7 @@ class UserProvider {
 
   // Obtener todos los usuarios
   async getAll() {
-    return await User.find({ isActive: true }).select('-password').sort({ createdAt: -1 });
+    return await User.find().select('-password').sort({ createdAt: -1 });
   }
 
   // Obtener usuario por ID
@@ -37,7 +37,7 @@ class UserProvider {
 
   // Eliminar usuario (soft delete)
   async delete(id) {
-    return await User.findByIdAndUpdate(id, { isActive: false }, { new: true });
+    return await User.findByIdAndDelete(id);
   }
 
   // Eliminar usuario permanentemente
@@ -60,7 +60,6 @@ class UserProvider {
   // Buscar usuarios por criterio
   async search(criteria) {
     const query = {
-      isActive: true,
       $or: [
         { username: { $regex: criteria, $options: 'i' } },
         { email: { $regex: criteria, $options: 'i' } }

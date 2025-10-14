@@ -11,49 +11,13 @@ const userPreferencesSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  customNotifications: [{
-    id: String,
-    name: String,
-    enabled: Boolean,
-    type: {
-      type: String,
-      enum: ['temperature', 'humidity', 'actuator', 'status']
-    },
-    condition: {
-      type: String,
-      enum: ['mayor_que', 'menor_que', 'igual_a', 'cambia_a']
-    },
-    value: mongoose.Schema.Types.Mixed, // Puede ser number o string
-    message: String,
-    locationScope: {
-      type: String,
-      enum: ['all', 'specific']
-    },
-    specificLocation: String,
-    createdAt: String,
-    lastTriggered: String
+  allNotificationIds: [{
+    type: String,
+    ref: 'Notification'
   }],
-  activeNotifications: [{
-    id: String,
-    name: String,
-    enabled: Boolean,
-    type: {
-      type: String,
-      enum: ['temperature', 'humidity', 'actuator', 'status']
-    },
-    condition: {
-      type: String,
-      enum: ['mayor_que', 'menor_que', 'igual_a', 'cambia_a']
-    },
-    value: mongoose.Schema.Types.Mixed,
-    message: String,
-    locationScope: {
-      type: String,
-      enum: ['all', 'specific']
-    },
-    specificLocation: String,
-    createdAt: String,
-    lastTriggered: String
+  activeNotificationIds: [{
+    type: String,
+    ref: 'Notification'
   }],
   totalNotifications: {
     type: Number,

@@ -6,6 +6,7 @@ const connectDB = require('./config/database');
 const sensorRoutes = require('./routes/sensorRoutes');
 const userRoutes = require('./routes/userRoutes');
 const userPreferencesRoutes = require('./routes/userPreferencesRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.post('/api/sensors/request', async (req, res) => {
 app.use('/api/sensors', sensorRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/user-preferences', userPreferencesRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Puerto
 const PORT = 3000;
