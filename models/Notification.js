@@ -51,6 +51,11 @@ const notificationSchema = new mongoose.Schema({
     },
     default: 'inactive'
   },
+  id: {
+    type: String,
+    unique: true,
+    sparse: true // Permite que algunos documentos no tengan 'id' temporalmente
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -60,17 +65,32 @@ const notificationSchema = new mongoose.Schema({
   versionKey: false,
   toJSON: {
     transform: function(doc, ret) {
-      // Agregar campo 'id' como alias de '_id' para compatibilidad con el frontend
-      ret.id = ret._id.toString();
+      // Asegurar que siempre haya un 'id' en la respuesta JSON
+      if (!ret.id && ret._id) {
+        ret.id = ret._id.toString();
+      }
       return ret;
     }
   }
+});
+
+// Middleware para generar automáticamente el campo 'id' antes de guardar
+// El 'id' se genera como string del '_id' de MongoDB
+// Mongoose asigna el _id automáticamente antes de ejecutar el pre-save hook
+notificationSchema.pre('save', function(next) {
+  // Solo generar 'id' si no existe y el documento es nuevo
+  if (this.isNew && !this.id) {
+    // El _id siempre existe en documentos nuevos antes de save()
+    this.id = this._id.toString();
+  }
+  next();
 });
 
 // Índices para optimizar consultas
 notificationSchema.index({ userId: 1, status: 1 });
 notificationSchema.index({ userId: 1, type: 1 });
 notificationSchema.index({ createdAt: -1 });
+notificationSchema.index({ id: 1 }, { unique: true, sparse: true }); // Índice único en 'id'
 
 // Método para obtener notificaciones activas de un usuario
 notificationSchema.statics.getActiveByUserId = function(userId) {

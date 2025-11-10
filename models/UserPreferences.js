@@ -11,7 +11,11 @@ const userPreferencesSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  myNotificationIds: [{
+  allNotificationIds: [{
+    type: String,
+    ref: 'Notification'
+  }],
+  activeNotificationIds: [{
     type: String,
     ref: 'Notification'
   }],

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const UserPreferences = require('../models/UserPreferences');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
@@ -5,12 +6,13 @@ const Notification = require('../models/Notification');
 // POST - Crear o actualizar preferencias del usuario
 const saveUserPreferences = async (req, res) => {
   try {
-    const { userId, preferredSensorId, myNotificationIds, theme } = req.body;
+    const { userId, preferredSensorId, allNotificationIds, activeNotificationIds, theme } = req.body;
     
     console.log('📝 Guardando preferencias del usuario:', {
       userId,
       preferredSensorId,
-      myNotificationIds: myNotificationIds || [],
+      allNotificationIds: allNotificationIds || [],
+      activeNotificationIds: activeNotificationIds || [],
       theme
     });
 
@@ -29,13 +31,17 @@ const saveUserPreferences = async (req, res) => {
     // Obtener contador de notificaciones antes de guardar
     const totalNotifications = await Notification.countDocuments({ userId });
     console.log('📊 Total de notificaciones del usuario:', totalNotifications);
-    console.log('📊 myNotificationIds recibidos:', myNotificationIds);
 
     if (userPreferences) {
       console.log('📝 Actualizando preferencias existentes');
       // Actualizar preferencias existentes
       userPreferences.preferredSensorId = preferredSensorId;
-      userPreferences.myNotificationIds = myNotificationIds || [];
+      if (allNotificationIds !== undefined) {
+        userPreferences.allNotificationIds = allNotificationIds || [];
+      }
+      if (activeNotificationIds !== undefined) {
+        userPreferences.activeNotificationIds = activeNotificationIds || [];
+      }
       userPreferences.totalNotifications = totalNotifications;
       userPreferences.theme = theme || 'auto';
     } else {
@@ -44,7 +50,8 @@ const saveUserPreferences = async (req, res) => {
       userPreferences = new UserPreferences({
         userId,
         preferredSensorId,
-        myNotificationIds: myNotificationIds || [],
+        allNotificationIds: allNotificationIds || [],
+        activeNotificationIds: activeNotificationIds || [],
         totalNotifications: totalNotifications,
         theme: theme || 'auto'
       });
@@ -52,7 +59,8 @@ const saveUserPreferences = async (req, res) => {
 
     await userPreferences.save();
     console.log('✅ Preferencias guardadas:', {
-      myNotificationIds: userPreferences.myNotificationIds,
+      allNotificationIds: userPreferences.allNotificationIds || [],
+      activeNotificationIds: userPreferences.activeNotificationIds || [],
       totalNotifications: userPreferences.totalNotifications
     });
 
@@ -70,7 +78,8 @@ const saveUserPreferences = async (req, res) => {
         username: populatedPreferences.userId.username,
         email: populatedPreferences.userId.email,
         preferredSensorId: populatedPreferences.preferredSensorId,
-        myNotificationIds: populatedPreferences.myNotificationIds,
+        allNotificationIds: populatedPreferences.allNotificationIds || [],
+        activeNotificationIds: populatedPreferences.activeNotificationIds || [],
         totalNotifications: totalNotifications,
         theme: populatedPreferences.theme,
         updatedAt: populatedPreferences.updatedAt
@@ -103,23 +112,64 @@ const getUserPreferences = async (req, res) => {
       });
     }
 
-    // Obtener todas las notificaciones del usuario por IDs
-    // myNotificationIds contiene strings de _id, así que buscamos por _id
-    const allNotifications = await Notification.find({
-      _id: { $in: userPreferences.myNotificationIds }
-    });
+    // Obtener todas las notificaciones del usuario
+    // Primero intentamos por allNotificationIds, si no hay, las obtenemos directamente
+    const allNotificationIds = userPreferences.allNotificationIds || [];
+    let allNotifications = [];
+    
+    if (allNotificationIds.length > 0) {
+      // Convertir strings a ObjectIds si es necesario
+      const objectIds = allNotificationIds.map(id => {
+        try {
+          return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+        } catch {
+          return id;
+        }
+      });
+      
+      allNotifications = await Notification.find({
+        $or: [
+          { _id: { $in: objectIds } },
+          { id: { $in: allNotificationIds } }
+        ]
+      });
+    } else {
+      // Si no hay IDs, obtener todas las notificaciones del usuario
+      allNotifications = await Notification.find({ userId: userPreferences.userId });
+    }
 
-    // Obtener notificaciones activas directamente de la base de datos
-    const activeNotifications = await Notification.find({
-      userId: userPreferences.userId,
-      status: 'active'
-    });
+    // Obtener notificaciones activas
+    const activeNotificationIds = userPreferences.activeNotificationIds || [];
+    let activeNotifications = [];
+    
+    if (activeNotificationIds.length > 0) {
+      const objectIds = activeNotificationIds.map(id => {
+        try {
+          return mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+        } catch {
+          return id;
+        }
+      });
+      
+      activeNotifications = await Notification.find({
+        $or: [
+          { _id: { $in: objectIds } },
+          { id: { $in: activeNotificationIds } }
+        ]
+      });
+    } else {
+      // Si no hay IDs activos, obtener directamente de la BD
+      activeNotifications = await Notification.find({
+        userId: userPreferences.userId,
+        status: 'active'
+      });
+    }
 
     const response = {
       ...userPreferences.toObject(),
       allNotifications,
       activeNotifications,
-      totalNotifications: allNotifications.length
+      totalNotifications: userPreferences.totalNotifications || allNotifications.length
     };
 
     res.status(200).json({
@@ -299,7 +349,8 @@ const updateUserPreferences = async (req, res) => {
         username: userPreferences.userId.username,
         email: userPreferences.userId.email,
         preferredSensorId: userPreferences.preferredSensorId,
-        allNotificationIds: userPreferences.allNotificationIds,
+        allNotificationIds: userPreferences.allNotificationIds || [],
+        activeNotificationIds: userPreferences.activeNotificationIds || [],
         totalNotifications: totalNotifications,
         theme: userPreferences.theme,
         updatedAt: userPreferences.updatedAt

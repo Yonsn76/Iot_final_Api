@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "jest"
+    "test": "jest",
+    "fix-index": "node scripts/removeIdIndex.js",
+    "migrate": "node scripts/migrateUserPreferences.js"
   },
   "keywords": [
     "iot",

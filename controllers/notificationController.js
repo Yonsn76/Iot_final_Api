@@ -24,12 +24,20 @@ const createNotification = async (req, res) => {
               console.log('📝 Creando UserPreferences para usuario:', userId);
               userPreferences = new UserPreferences({
                 userId,
-                myNotificationIds: [],
+                allNotificationIds: [],
+                activeNotificationIds: [],
                 totalNotifications: 0,
                 theme: 'auto'
               });
               await userPreferences.save();
             }
+
+    // El campo 'id' se genera automáticamente en el modelo, no debe venir en el request
+    // Si viene, lo ignoramos para evitar conflictos
+    if (req.body.id) {
+      console.warn('⚠️ Se recibió el campo "id" en el request, será ignorado. El ID se genera automáticamente.');
+      delete req.body.id;
+    }
 
     // Crear la notificación
     console.log('📝 Creando notificación con datos:', {
@@ -58,12 +66,20 @@ const createNotification = async (req, res) => {
     console.log('✅ Notificación creada con ID:', notification._id);
 
     // Actualizar UserPreferences con la nueva notificación
+    // Agregar a allNotificationIds (todas las notificaciones)
+    // Si está activa, también agregar a activeNotificationIds
+    const updateData = {
+      $addToSet: { allNotificationIds: notification.id || notification._id.toString() },
+      $inc: { totalNotifications: 1 }
+    };
+    
+    if (notification.status === 'active') {
+      updateData.$addToSet.activeNotificationIds = notification.id || notification._id.toString();
+    }
+    
     await UserPreferences.findOneAndUpdate(
       { userId },
-      { 
-        $addToSet: { myNotificationIds: notification._id.toString() },
-        $inc: { totalNotifications: 1 } 
-      }
+      updateData
     );
     console.log('✅ UserPreferences actualizado');
 
@@ -80,6 +96,18 @@ const createNotification = async (req, res) => {
       stack: error.stack,
       name: error.name
     });
+    
+    // Manejar específicamente el error de índice duplicado en el campo 'id'
+    if (error.message && error.message.includes('E11000') && error.message.includes('id_1')) {
+      console.error('❌ Error de índice duplicado detectado. El índice "id_1" debe eliminarse de MongoDB.');
+      return res.status(500).json({
+        success: false,
+        message: 'Error de base de datos: existe un índice problemático en el campo "id". Contacte al administrador del sistema.',
+        error: 'E11000 duplicate key error - índice id_1 debe eliminarse',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -179,7 +207,21 @@ const getNotificationById = async (req, res) => {
 const updateNotification = async (req, res) => {
   try {
     const { id } = req.params;
+    // El campo 'id' no debe actualizarse manualmente, se genera automáticamente
+    if (req.body.id) {
+      console.warn('⚠️ Se recibió el campo "id" en el body de actualización, será ignorado.');
+      delete req.body.id;
+    }
     const updateData = req.body;
+
+    // Obtener la notificación antes de actualizar para verificar el status anterior
+    const oldNotification = await Notification.findById(id);
+    if (!oldNotification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notificación no encontrada'
+      });
+    }
 
     const notification = await Notification.findByIdAndUpdate(
       id,
@@ -192,6 +234,35 @@ const updateNotification = async (req, res) => {
         success: false,
         message: 'Notificación no encontrada'
       });
+    }
+
+    // Si el status cambió, actualizar UserPreferences
+    if (updateData.status && updateData.status !== oldNotification.status) {
+      const notificationId = notification.id || notification._id.toString();
+      const userId = notification.userId;
+      
+      if (updateData.status === 'active') {
+        // Agregar a activeNotificationIds
+        await UserPreferences.findOneAndUpdate(
+          { userId },
+          { 
+            $addToSet: { 
+              activeNotificationIds: notificationId,
+              allNotificationIds: notificationId
+            }
+          }
+        );
+      } else if (updateData.status === 'inactive') {
+        // Remover de activeNotificationIds
+        await UserPreferences.findOneAndUpdate(
+          { userId },
+          { 
+            $pull: { 
+              activeNotificationIds: notificationId
+            }
+          }
+        );
+      }
     }
 
     res.status(200).json({
@@ -227,7 +298,16 @@ const activateNotification = async (req, res) => {
     // Activar la notificación
     await notification.activate();
 
-    // No es necesario actualizar UserPreferences para activar
+    // Actualizar UserPreferences: agregar a activeNotificationIds
+    await UserPreferences.findOneAndUpdate(
+      { userId },
+      { 
+        $addToSet: { 
+          activeNotificationIds: notification.id || notification._id.toString(),
+          allNotificationIds: notification.id || notification._id.toString()
+        }
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -262,7 +342,15 @@ const deactivateNotification = async (req, res) => {
     // Desactivar la notificación
     await notification.deactivate();
 
-    // No es necesario actualizar UserPreferences para desactivar
+    // Actualizar UserPreferences: remover de activeNotificationIds
+    await UserPreferences.findOneAndUpdate(
+      { userId },
+      { 
+        $pull: { 
+          activeNotificationIds: notification.id || notification._id.toString()
+        }
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -294,15 +382,19 @@ const deleteNotification = async (req, res) => {
       });
     }
 
+    // Obtener el ID de la notificación antes de eliminarla
+    const notificationId = notification.id || notification._id.toString();
+    
     // Eliminar la notificación
     await Notification.findByIdAndDelete(id);
 
-    // Remover de allNotificationIds y actualizar contador
+    // Remover de allNotificationIds, activeNotificationIds y actualizar contador
     await UserPreferences.findOneAndUpdate(
       { userId },
       {
         $pull: {
-          myNotificationIds: id
+          allNotificationIds: notificationId,
+          activeNotificationIds: notificationId
         },
         $inc: { totalNotifications: -1 }
       }
