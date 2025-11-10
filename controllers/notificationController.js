@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const UserPreferences = require('../models/UserPreferences');
 const User = require('../models/User');
@@ -54,13 +55,13 @@ const createNotification = async (req, res) => {
     });
 
     await notification.save();
-    console.log('✅ Notificación creada con ID:', notification.id);
+    console.log('✅ Notificación creada con ID:', notification._id);
 
     // Actualizar UserPreferences con la nueva notificación
     await UserPreferences.findOneAndUpdate(
       { userId },
       { 
-        $addToSet: { myNotificationIds: notification.id },
+        $addToSet: { myNotificationIds: notification._id.toString() },
         $inc: { totalNotifications: 1 } 
       }
     );
@@ -150,7 +151,7 @@ const getNotificationById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const notification = await Notification.findOne({ id });
+    const notification = await Notification.findById(id);
 
     if (!notification) {
       return res.status(404).json({
@@ -180,8 +181,8 @@ const updateNotification = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const notification = await Notification.findOneAndUpdate(
-      { id },
+    const notification = await Notification.findByIdAndUpdate(
+      id,
       updateData,
       { new: true, runValidators: true }
     );
@@ -215,7 +216,7 @@ const activateNotification = async (req, res) => {
     const { id } = req.params;
     const { userId } = req.body;
 
-    const notification = await Notification.findOne({ id, userId });
+    const notification = await Notification.findOne({ _id: id, userId });
     if (!notification) {
       return res.status(404).json({
         success: false,
@@ -250,7 +251,7 @@ const deactivateNotification = async (req, res) => {
     const { id } = req.params;
     const { userId } = req.body;
 
-    const notification = await Notification.findOne({ id, userId });
+    const notification = await Notification.findOne({ _id: id, userId });
     if (!notification) {
       return res.status(404).json({
         success: false,
@@ -285,7 +286,7 @@ const deleteNotification = async (req, res) => {
     const { id } = req.params;
     const { userId } = req.body;
 
-    const notification = await Notification.findOne({ id, userId });
+    const notification = await Notification.findOne({ _id: id, userId });
     if (!notification) {
       return res.status(404).json({
         success: false,
@@ -294,7 +295,7 @@ const deleteNotification = async (req, res) => {
     }
 
     // Eliminar la notificación
-    await Notification.findOneAndDelete({ id, userId });
+    await Notification.findByIdAndDelete(id);
 
     // Remover de allNotificationIds y actualizar contador
     await UserPreferences.findOneAndUpdate(
@@ -328,7 +329,7 @@ const getNotificationStats = async (req, res) => {
     const { userId } = req.params;
 
     const stats = await Notification.aggregate([
-      { $match: { userId: mongoose.Types.ObjectId(userId) } },
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
       {
         $group: {
           _id: null,

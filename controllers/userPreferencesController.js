@@ -104,8 +104,9 @@ const getUserPreferences = async (req, res) => {
     }
 
     // Obtener todas las notificaciones del usuario por IDs
+    // myNotificationIds contiene strings de _id, así que buscamos por _id
     const allNotifications = await Notification.find({
-      id: { $in: userPreferences.myNotificationIds }
+      _id: { $in: userPreferences.myNotificationIds }
     });
 
     // Obtener notificaciones activas directamente de la base de datos

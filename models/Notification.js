@@ -1,11 +1,6 @@
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
-  id: {
-    type: String,
-    required: false, // Se generará automáticamente en pre-save
-    unique: true
-  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -62,13 +57,19 @@ const notificationSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
-  versionKey: false
+  versionKey: false,
+  toJSON: {
+    transform: function(doc, ret) {
+      // Agregar campo 'id' como alias de '_id' para compatibilidad con el frontend
+      ret.id = ret._id.toString();
+      return ret;
+    }
+  }
 });
 
 // Índices para optimizar consultas
 notificationSchema.index({ userId: 1, status: 1 });
 notificationSchema.index({ userId: 1, type: 1 });
-notificationSchema.index({ id: 1 }, { unique: true });
 notificationSchema.index({ createdAt: -1 });
 
 // Método para obtener notificaciones activas de un usuario
@@ -98,13 +99,5 @@ notificationSchema.methods.deactivate = function() {
   this.status = 'inactive';
   return this.save();
 };
-
-// Middleware para generar ID único si no existe
-notificationSchema.pre('save', function(next) {
-  if (!this.id) {
-    this.id = new mongoose.Types.ObjectId().toString();
-  }
-  next();
-});
 
 module.exports = mongoose.model('Notification', notificationSchema);
