@@ -16,14 +16,16 @@ class SensorProvider {
     return await SensorData.findById(id);
   }
 
-  // Actualizar
-  async update(id, data) {
-    return await SensorData.findByIdAndUpdate(id, data, { new: true });
-  }
-
-  // Eliminar
-  async delete(id) {
-    return await SensorData.findByIdAndDelete(id);
+  // Obtener por rango de fechas
+  async getByDateRange(startDate, endDate) {
+    const query = {};
+    if (startDate && endDate) {
+      query.fecha = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+    return await SensorData.find(query).sort({ fecha: -1 });
   }
 }
 

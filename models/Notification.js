@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const notificationSchema = new mongoose.Schema({
   id: {
     type: String,
-    required: true,
+    required: false, // Se generará automáticamente en pre-save
     unique: true
   },
   userId: {
@@ -16,10 +16,6 @@ const notificationSchema = new mongoose.Schema({
     required: [true, 'El nombre de la notificación es requerido'],
     trim: true,
     maxlength: [100, 'El nombre no puede exceder 100 caracteres']
-  },
-  enabled: {
-    type: Boolean,
-    default: true
   },
   type: {
     type: String,
@@ -46,34 +42,23 @@ const notificationSchema = new mongoose.Schema({
     trim: true,
     maxlength: [500, 'El mensaje no puede exceder 500 caracteres']
   },
-  locationScope: {
-    type: String,
-    enum: {
-      values: ['all', 'specific'],
-      message: 'Alcance de ubicación inválido'
-    },
-    default: 'all'
-  },
-  specificLocation: {
+  location: {
     type: String,
     trim: true,
-    maxlength: [100, 'La ubicación específica no puede exceder 100 caracteres']
+    maxlength: [100, 'La ubicación no puede exceder 100 caracteres'],
+    default: 'Todas las ubicaciones'
   },
   status: {
     type: String,
     enum: {
-      values: ['custom', 'active', 'archived'],
+      values: ['active', 'inactive'],
       message: 'Estado de notificación inválido'
     },
-    default: 'custom'
+    default: 'inactive'
   },
   createdAt: {
     type: Date,
     default: Date.now
-  },
-  lastTriggered: {
-    type: Date,
-    default: null
   }
 }, {
   timestamps: true,
@@ -85,22 +70,20 @@ notificationSchema.index({ userId: 1, status: 1 });
 notificationSchema.index({ userId: 1, type: 1 });
 notificationSchema.index({ id: 1 }, { unique: true });
 notificationSchema.index({ createdAt: -1 });
-notificationSchema.index({ userId: 1, enabled: 1 });
 
 // Método para obtener notificaciones activas de un usuario
 notificationSchema.statics.getActiveByUserId = function(userId) {
   return this.find({ 
     userId: userId, 
-    status: 'active',
-    enabled: true 
+    status: 'active'
   }).sort({ createdAt: -1 });
 };
 
-// Método para obtener notificaciones personalizadas de un usuario
-notificationSchema.statics.getCustomByUserId = function(userId) {
+// Método para obtener notificaciones inactivas de un usuario
+notificationSchema.statics.getInactiveByUserId = function(userId) {
   return this.find({ 
     userId: userId, 
-    status: 'custom' 
+    status: 'inactive' 
   }).sort({ createdAt: -1 });
 };
 
@@ -112,13 +95,7 @@ notificationSchema.methods.activate = function() {
 
 // Método para desactivar una notificación
 notificationSchema.methods.deactivate = function() {
-  this.status = 'custom';
-  return this.save();
-};
-
-// Método para archivar una notificación
-notificationSchema.methods.archive = function() {
-  this.status = 'archived';
+  this.status = 'inactive';
   return this.save();
 };
 

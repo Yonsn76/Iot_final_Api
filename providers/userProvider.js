@@ -35,9 +35,37 @@ class UserProvider {
     return await User.findByIdAndUpdate(id, data, { new: true }).select('-password');
   }
 
-  // Eliminar usuario (soft delete)
+  // Eliminar usuario (soft delete) con eliminación en cascada
   async delete(id) {
-    return await User.findByIdAndDelete(id);
+    const session = await User.startSession();
+    
+    try {
+      await session.withTransaction(async () => {
+        // 1. Eliminar preferencias del usuario
+        const UserPreferences = require('../models/UserPreferences');
+        await UserPreferences.deleteMany({ userId: id }).session(session);
+        console.log(`🗑️ Eliminadas preferencias del usuario ${id}`);
+        
+        // 2. Eliminar notificaciones del usuario
+        const Notification = require('../models/Notification');
+        await Notification.deleteMany({ userId: id }).session(session);
+        console.log(`🗑️ Eliminadas notificaciones del usuario ${id}`);
+        
+        // 3. Eliminar el usuario
+        const deletedUser = await User.findByIdAndDelete(id).session(session);
+        console.log(`🗑️ Usuario ${id} eliminado exitosamente`);
+        
+        return deletedUser;
+      });
+      
+      // Retornar el usuario eliminado
+      return await User.findById(id);
+    } catch (error) {
+      console.error('Error eliminando usuario en cascada:', error);
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   // Eliminar usuario permanentemente

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const userProvider = require('../providers/userProvider');
+const User = require('../models/User');
 
 // Generar token JWT
 const generateToken = (userId) => {
@@ -217,20 +218,56 @@ const updateUser = async (req, res) => {
   }
 };
 
-// Eliminar usuario (soft delete)
+// Eliminar usuario (soft delete) con eliminación en cascada
 const deleteUser = async (req, res) => {
   try {
-    const user = await userProvider.delete(req.params.id);
-    if (!user) {
+    const userId = req.params.id;
+    
+    // Verificar que el usuario existe antes de eliminar
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
       return res.status(404).json({ 
         error: 'Usuario no encontrado',
         message: 'No se encontró el usuario con ese ID'
       });
     }
+
+    // Contar registros relacionados antes de eliminar
+    const UserPreferences = require('../models/UserPreferences');
+    const Notification = require('../models/Notification');
+    
+    const preferencesCount = await UserPreferences.countDocuments({ userId });
+    const notificationsCount = await Notification.countDocuments({ userId });
+    
+    console.log(`📊 Eliminando usuario ${userId}:`);
+    console.log(`   - Preferencias: ${preferencesCount}`);
+    console.log(`   - Notificaciones: ${notificationsCount}`);
+    
+    // Eliminar usuario con cascada
+    const deletedUser = await userProvider.delete(userId);
+    
+    if (!deletedUser) {
+      return res.status(500).json({ 
+        error: 'Error en eliminación',
+        message: 'No se pudo eliminar el usuario'
+      });
+    }
+    
     res.json({
-      message: 'Usuario eliminado exitosamente'
+      success: true,
+      message: 'Usuario y todos sus datos relacionados eliminados exitosamente',
+      deletedData: {
+        user: {
+          id: deletedUser._id,
+          username: deletedUser.username,
+          email: deletedUser.email
+        },
+        preferences: preferencesCount,
+        notifications: notificationsCount
+      }
     });
   } catch (error) {
+    console.error('Error eliminando usuario:', error);
     res.status(500).json({ 
       error: 'Error interno del servidor',
       message: error.message 
@@ -264,6 +301,68 @@ const searchUsers = async (req, res) => {
   }
 };
 
+// Cambiar contraseña del usuario autenticado
+const changePassword = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { currentPassword, newPassword } = req.body;
+
+    // Validar datos de entrada
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        error: 'Datos requeridos',
+        message: 'Contraseña actual y nueva contraseña son requeridas'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        error: 'Contraseña inválida',
+        message: 'La nueva contraseña debe tener al menos 6 caracteres'
+      });
+    }
+
+    // Obtener el usuario con la contraseña para verificar
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        error: 'Usuario no encontrado',
+        message: 'No se pudo encontrar el usuario'
+      });
+    }
+
+    // Verificar la contraseña actual
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ 
+        error: 'Contraseña incorrecta',
+        message: 'La contraseña actual es incorrecta'
+      });
+    }
+
+    // Verificar que la nueva contraseña sea diferente
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ 
+        error: 'Contraseña inválida',
+        message: 'La nueva contraseña debe ser diferente a la actual'
+      });
+    }
+
+    // Actualizar la contraseña
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      message: 'Contraseña cambiada exitosamente'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      message: error.message 
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -273,5 +372,6 @@ module.exports = {
   getUserById,
   updateUser,
   deleteUser,
-  searchUsers
+  searchUsers,
+  changePassword
 };

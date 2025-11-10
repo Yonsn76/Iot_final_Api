@@ -9,7 +9,8 @@ const {
   getUserById,
   updateUser,
   deleteUser,
-  searchUsers
+  searchUsers,
+  changePassword
 } = require('../controllers/userController');
 
 const { authenticateToken } = require('../middleware/auth');
@@ -21,6 +22,7 @@ router.post('/login', login);                 // Iniciar sesión
 // Rutas protegidas (requieren autenticación)
 router.get('/profile', authenticateToken, getProfile);                    // Obtener perfil propio
 router.put('/profile', authenticateToken, updateProfile);                 // Actualizar perfil propio
+router.put('/change-password', authenticateToken, changePassword);        // Cambiar contraseña del usuario autenticado
 
 // Rutas protegidas (requieren autenticación)
 router.get('/', authenticateToken, getAllUsers);           // Obtener todos los usuarios

@@ -1,21 +1,47 @@
 const Notification = require('../models/Notification');
 const UserPreferences = require('../models/UserPreferences');
+const User = require('../models/User');
 
 // POST - Crear nueva notificación
 const createNotification = async (req, res) => {
   try {
-    const { userId, name, type, condition, value, message, locationScope, specificLocation } = req.body;
+    console.log('📝 Datos recibidos:', req.body);
+    const { userId, name, type, condition, value, message, location } = req.body;
 
     // Validar que el usuario existe
-    const userPreferences = await UserPreferences.findOne({ userId });
-    if (!userPreferences) {
+    const user = await User.findById(userId);
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: 'Usuario no encontrado'
       });
     }
 
+            // Buscar o crear UserPreferences
+            let userPreferences = await UserPreferences.findOne({ userId });
+            if (!userPreferences) {
+              console.log('📝 Creando UserPreferences para usuario:', userId);
+              userPreferences = new UserPreferences({
+                userId,
+                myNotificationIds: [],
+                totalNotifications: 0,
+                theme: 'auto'
+              });
+              await userPreferences.save();
+            }
+
     // Crear la notificación
+    console.log('📝 Creando notificación con datos:', {
+      userId,
+      name,
+      type,
+      condition,
+      value,
+      message,
+      location: location || 'Todas las ubicaciones',
+      status: 'inactive'
+    });
+
     const notification = new Notification({
       userId,
       name,
@@ -23,21 +49,22 @@ const createNotification = async (req, res) => {
       condition,
       value,
       message,
-      locationScope: locationScope || 'all',
-      specificLocation: locationScope === 'specific' ? specificLocation : null,
-      status: 'custom'
+      location: location || 'Todas las ubicaciones',
+      status: 'inactive'
     });
 
     await notification.save();
+    console.log('✅ Notificación creada con ID:', notification.id);
 
     // Actualizar UserPreferences con la nueva notificación
     await UserPreferences.findOneAndUpdate(
       { userId },
       { 
-        $addToSet: { allNotificationIds: notification.id },
+        $addToSet: { myNotificationIds: notification.id },
         $inc: { totalNotifications: 1 } 
       }
     );
+    console.log('✅ UserPreferences actualizado');
 
     res.status(201).json({
       success: true,
@@ -46,11 +73,17 @@ const createNotification = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating notification:', error);
+    console.error('❌ Error creating notification:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -193,11 +226,7 @@ const activateNotification = async (req, res) => {
     // Activar la notificación
     await notification.activate();
 
-    // Agregar a activeNotificationIds si no está
-    await UserPreferences.findOneAndUpdate(
-      { userId },
-      { $addToSet: { activeNotificationIds: id } }
-    );
+    // No es necesario actualizar UserPreferences para activar
 
     res.status(200).json({
       success: true,
@@ -232,11 +261,7 @@ const deactivateNotification = async (req, res) => {
     // Desactivar la notificación
     await notification.deactivate();
 
-    // Remover de activeNotificationIds
-    await UserPreferences.findOneAndUpdate(
-      { userId },
-      { $pull: { activeNotificationIds: id } }
-    );
+    // No es necesario actualizar UserPreferences para desactivar
 
     res.status(200).json({
       success: true,
@@ -271,13 +296,12 @@ const deleteNotification = async (req, res) => {
     // Eliminar la notificación
     await Notification.findOneAndDelete({ id, userId });
 
-    // Remover de ambos arrays y actualizar contador
+    // Remover de allNotificationIds y actualizar contador
     await UserPreferences.findOneAndUpdate(
       { userId },
-      { 
-        $pull: { 
-          allNotificationIds: id,
-          activeNotificationIds: id 
+      {
+        $pull: {
+          myNotificationIds: id
         },
         $inc: { totalNotifications: -1 }
       }

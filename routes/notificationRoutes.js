@@ -14,6 +14,31 @@ const {
 
 const { authenticateToken } = require('../middleware/auth');
 
+// Ruta de prueba (sin autenticación)
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API de notificaciones funcionando correctamente',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Ruta de prueba para crear notificación (sin autenticación) - SOLO PARA DESARROLLO
+if (process.env.NODE_ENV === 'development') {
+  router.post('/test-create', async (req, res) => {
+    try {
+      const { createNotification } = require('../controllers/notificationController');
+      await createNotification(req, res);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error en ruta de prueba',
+        error: error.message
+      });
+    }
+  });
+}
+
 // Rutas protegidas (requieren autenticación)
 router.post('/', authenticateToken, createNotification);                    // Crear notificación
 router.get('/user/:userId', authenticateToken, getUserNotifications);      // Obtener notificaciones de usuario

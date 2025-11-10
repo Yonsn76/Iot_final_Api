@@ -11,17 +11,18 @@ const userPreferencesSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  allNotificationIds: [{
-    type: String,
-    ref: 'Notification'
-  }],
-  activeNotificationIds: [{
+  myNotificationIds: [{
     type: String,
     ref: 'Notification'
   }],
   totalNotifications: {
     type: Number,
     default: 0
+  },
+  theme: {
+    type: String,
+    enum: ['light', 'dark', 'auto'],
+    default: 'auto'
   }
 }, {
   timestamps: true // Agrega createdAt y updatedAt automáticamente

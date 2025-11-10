@@ -33,27 +33,12 @@ const getSensorById = async (req, res) => {
   }
 };
 
-// Actualizar
-const updateSensor = async (req, res) => {
+// Obtener sensores por rango de fechas
+const getSensorsByDateRange = async (req, res) => {
   try {
-    const sensor = await sensorProvider.update(req.params.id, req.body);
-    if (!sensor) {
-      return res.status(404).json({ error: 'Sensor no encontrado' });
-    }
-    res.json(sensor);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Eliminar
-const deleteSensor = async (req, res) => {
-  try {
-    const sensor = await sensorProvider.delete(req.params.id);
-    if (!sensor) {
-      return res.status(404).json({ error: 'Sensor no encontrado' });
-    }
-    res.json({ message: 'Sensor eliminado' });
+    const { startDate, endDate } = req.query;
+    const sensors = await sensorProvider.getByDateRange(startDate, endDate);
+    res.json(sensors);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -63,6 +48,5 @@ module.exports = {
   createSensor,
   getAllSensors,
   getSensorById,
-  updateSensor,
-  deleteSensor
+  getSensorsByDateRange
 };

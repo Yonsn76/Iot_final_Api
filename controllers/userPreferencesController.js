@@ -5,7 +5,14 @@ const Notification = require('../models/Notification');
 // POST - Crear o actualizar preferencias del usuario
 const saveUserPreferences = async (req, res) => {
   try {
-    const { userId, preferredSensorId, allNotificationIds, activeNotificationIds } = req.body;
+    const { userId, preferredSensorId, myNotificationIds, theme } = req.body;
+    
+    console.log('📝 Guardando preferencias del usuario:', {
+      userId,
+      preferredSensorId,
+      myNotificationIds: myNotificationIds || [],
+      theme
+    });
 
     // Validar que el usuario existe
     const user = await User.findById(userId);
@@ -19,25 +26,35 @@ const saveUserPreferences = async (req, res) => {
     // Buscar preferencias existentes
     let userPreferences = await UserPreferences.findOne({ userId });
 
+    // Obtener contador de notificaciones antes de guardar
+    const totalNotifications = await Notification.countDocuments({ userId });
+    console.log('📊 Total de notificaciones del usuario:', totalNotifications);
+    console.log('📊 myNotificationIds recibidos:', myNotificationIds);
+
     if (userPreferences) {
+      console.log('📝 Actualizando preferencias existentes');
       // Actualizar preferencias existentes
       userPreferences.preferredSensorId = preferredSensorId;
-      userPreferences.allNotificationIds = allNotificationIds || [];
-      userPreferences.activeNotificationIds = activeNotificationIds || [];
+      userPreferences.myNotificationIds = myNotificationIds || [];
+      userPreferences.totalNotifications = totalNotifications;
+      userPreferences.theme = theme || 'auto';
     } else {
+      console.log('📝 Creando nuevas preferencias');
       // Crear nuevas preferencias
       userPreferences = new UserPreferences({
         userId,
         preferredSensorId,
-        allNotificationIds: allNotificationIds || [],
-        activeNotificationIds: activeNotificationIds || []
+        myNotificationIds: myNotificationIds || [],
+        totalNotifications: totalNotifications,
+        theme: theme || 'auto'
       });
     }
 
     await userPreferences.save();
-
-    // Obtener contador de notificaciones
-    const totalNotifications = await Notification.countDocuments({ userId });
+    console.log('✅ Preferencias guardadas:', {
+      myNotificationIds: userPreferences.myNotificationIds,
+      totalNotifications: userPreferences.totalNotifications
+    });
 
     // Obtener datos del usuario mediante populate
     const populatedPreferences = await UserPreferences.findById(userPreferences._id)
@@ -53,9 +70,9 @@ const saveUserPreferences = async (req, res) => {
         username: populatedPreferences.userId.username,
         email: populatedPreferences.userId.email,
         preferredSensorId: populatedPreferences.preferredSensorId,
-        allNotificationIds: populatedPreferences.allNotificationIds,
-        activeNotificationIds: populatedPreferences.activeNotificationIds,
+        myNotificationIds: populatedPreferences.myNotificationIds,
         totalNotifications: totalNotifications,
+        theme: populatedPreferences.theme,
         updatedAt: populatedPreferences.updatedAt
       }
     });
@@ -88,12 +105,13 @@ const getUserPreferences = async (req, res) => {
 
     // Obtener todas las notificaciones del usuario por IDs
     const allNotifications = await Notification.find({
-      id: { $in: userPreferences.allNotificationIds }
+      id: { $in: userPreferences.myNotificationIds }
     });
 
-    // Obtener notificaciones activas completas
+    // Obtener notificaciones activas directamente de la base de datos
     const activeNotifications = await Notification.find({
-      id: { $in: userPreferences.activeNotificationIds }
+      userId: userPreferences.userId,
+      status: 'active'
     });
 
     const response = {
@@ -213,10 +231,9 @@ const getPreferencesStats = async (req, res) => {
       {
         $group: {
           _id: null,
-          totalNotifications: { $sum: 1 },
-          activeNotifications: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
-          customNotifications: { $sum: { $cond: [{ $eq: ['$status', 'custom'] }, 1, 0] } },
-          archivedNotifications: { $sum: { $cond: [{ $eq: ['$status', 'archived'] }, 1, 0] } },
+            totalNotifications: { $sum: 1 },
+            activeNotifications: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+            inactiveNotifications: { $sum: { $cond: [{ $eq: ['$status', 'inactive'] }, 1, 0] } },
           avgNotificationsPerUser: { $avg: 1 }
         }
       }
@@ -228,10 +245,9 @@ const getPreferencesStats = async (req, res) => {
         totalUsers,
         sensorStats,
         notificationStats: notificationStats[0] || {
-          totalNotifications: 0,
-          activeNotifications: 0,
-          customNotifications: 0,
-          archivedNotifications: 0,
+            totalNotifications: 0,
+            activeNotifications: 0,
+            inactiveNotifications: 0,
           avgNotificationsPerUser: 0
         }
       }
@@ -283,8 +299,8 @@ const updateUserPreferences = async (req, res) => {
         email: userPreferences.userId.email,
         preferredSensorId: userPreferences.preferredSensorId,
         allNotificationIds: userPreferences.allNotificationIds,
-        activeNotificationIds: userPreferences.activeNotificationIds,
         totalNotifications: totalNotifications,
+        theme: userPreferences.theme,
         updatedAt: userPreferences.updatedAt
       }
     });

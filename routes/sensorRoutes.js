@@ -4,15 +4,13 @@ const {
   createSensor,
   getAllSensors,
   getSensorById,
-  updateSensor,
-  deleteSensor
+  getSensorsByDateRange
 } = require('../controllers/sensorController');
 
-// Rutas CRUD básicas
-router.post('/', createSensor);           // Crear
-router.get('/', getAllSensors);           // Obtener todos
-router.get('/:id', getSensorById);        // Obtener por ID
-router.put('/:id', updateSensor);         // Actualizar
-router.delete('/:id', deleteSensor);      // Eliminar
+// Rutas para datos históricos de sensores
+router.post('/', createSensor);                    // Crear nueva medición
+router.get('/', getAllSensors);                    // Obtener todas las mediciones
+router.get('/range', getSensorsByDateRange);       // Obtener por rango de fechas
+router.get('/:id', getSensorById);                 // Obtener medición específica
 
 module.exports = router;
