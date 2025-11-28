@@ -112,3 +112,6 @@ Thumbs.db
 
 # MongoDB data
 data/
+
+# Kiro configuration and specs
+.kiro/
